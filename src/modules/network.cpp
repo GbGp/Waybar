@@ -612,20 +612,20 @@ void waybar::modules::Network::clearIface() {
   frequency_ = 0;
 }
 
-void waybar::modules::Network::checkNewInterface(struct ifinfomsg *rtif) {
-  auto new_iface = getPreferredIface(rtif->ifi_index);
-  if (new_iface != -1) {
-    ifid_ = new_iface;
-    char ifname[IF_NAMESIZE];
-    if_indextoname(new_iface, ifname);
-    ifname_ = ifname;
-    getInterfaceAddress();
-    thread_timer_.wake_up();
-  } else {
-    ifid_ = -1;
-    dp.emit();
-  }
-}
+//void waybar::modules::Network::checkNewInterface(struct ifinfomsg *rtif) {
+//  auto new_iface = getPreferredIface(rtif->ifi_index);
+//  if (new_iface != -1) {
+//    ifid_ = new_iface;
+//    char ifname[IF_NAMESIZE];
+//    if_indextoname(new_iface, ifname);
+//    ifname_ = ifname;
+//    getInterfaceAddress();
+//    thread_timer_.wake_up();
+//  } else {
+//    ifid_ = -1;
+//    dp.emit();
+//  }
+//}
 
 int waybar::modules::Network::handleEvents(struct nl_msg *msg, void *data) {
   auto                        net = static_cast<waybar::modules::Network *>(data);
@@ -635,16 +635,11 @@ int waybar::modules::Network::handleEvents(struct nl_msg *msg, void *data) {
   if (nh->nlmsg_type == RTM_DELADDR) {
     // Check for valid interface
     if (ifi->ifi_index == net->ifid_) {
+      net->clearIface();
       net->ipaddr_.clear();
       net->netmask_.clear();
       net->cidr_ = 0;
-      if (!(ifi->ifi_flags & IFF_RUNNING)) {
-        net->clearIface();
-        // Check for a new interface and get info
-        net->checkNewInterface(ifi);
-      } else {
-        net->dp.emit();
-      }
+      net->dp.emit();
       return NL_OK;
     }
   } else if (nh->nlmsg_type == RTM_NEWLINK || nh->nlmsg_type == RTM_DELLINK) {
@@ -662,8 +657,7 @@ int waybar::modules::Network::handleEvents(struct nl_msg *msg, void *data) {
                (!(ifi->ifi_flags & IFF_RUNNING) || !(ifi->ifi_flags & IFF_UP) ||
                 !net->checkInterface(ifi, ifname))) {
       net->clearIface();
-      // Check for a new interface and get info
-      net->checkNewInterface(ifi);
+      net->thread_timer_.wake_up();
       return NL_OK;
     }
   } else {

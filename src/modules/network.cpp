@@ -635,37 +635,31 @@ int waybar::modules::Network::handleEvents(struct nl_msg *msg, void *data) {
   if (nh->nlmsg_type == RTM_DELADDR) {
     // Check for valid interface
     if (ifi->ifi_index == net->ifid_) {
-      net->ipaddr_.clear();
-      net->netmask_.clear();
-      net->cidr_ = 0;
-      if (!(ifi->ifi_flags & IFF_RUNNING)) {
-        net->clearIface();
-        // Check for a new interface and get info
-        net->checkNewInterface(ifi);
-      } else {
-        net->dp.emit();
-      }
+      net->clearIface();
+      net->dp.emit();
       return NL_OK;
     }
   } else if (nh->nlmsg_type == RTM_NEWLINK || nh->nlmsg_type == RTM_DELLINK) {
     char ifname[IF_NAMESIZE];
     if_indextoname(ifi->ifi_index, ifname);
+    bool isSameIface = net->checkInterface(ifi, ifname);
     // Check for valid interface
-    if (ifi->ifi_index != net->ifid_ && net->checkInterface(ifi, ifname)) {
+    if (ifi->ifi_index != net->ifid_ && isSameIface) {
       net->ifname_ = ifname;
       net->ifid_ = ifi->ifi_index;
       // Get Iface and WIFI info
       net->getInterfaceAddress();
-      net->thread_timer_.wake_up();
-      return NL_OK;
     } else if (ifi->ifi_index == net->ifid_ &&
                (!(ifi->ifi_flags & IFF_RUNNING) || !(ifi->ifi_flags & IFF_UP) ||
-                !net->checkInterface(ifi, ifname))) {
+                !isSameIface)) {
       net->clearIface();
       // Check for a new interface and get info
-      net->checkNewInterface(ifi);
-      return NL_OK;
+      if (!isSameIface){
+        net->checkNewInterface(ifi);
+      }
     }
+    net->thread_timer_.wake_up();
+    return NL_OK;
   } else {
     char ifname[IF_NAMESIZE];
     if_indextoname(ifi->ifi_index, ifname);
